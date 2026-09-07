@@ -1,10 +1,12 @@
 package fetcher
 
 import (
-	"fmt",
 	"context"
+	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/vasugupta1/MonzoUrlCrawler/internal/parser"
 )
 
 type fetcher interface {
@@ -13,15 +15,15 @@ type fetcher interface {
 
 type HttpFetcher struct {
 	client *http.Client
-	parser *HtmlParser
+	parser *parser.HtmlParser
 }
 
-func NewHttpFetcher(timeout time.Duration, htmlParser *HtmlParser) *HttpFetcher {
+func NewHttpFetcher(timeout time.Duration, htmlParser *parser.HtmlParser) *HttpFetcher {
 	return &HttpFetcher{
 		client: &http.Client{
 			Timeout: timeout,
 		},
-		htmlParser: htmlParser
+		parser: htmlParser,
 	}
 }
 
@@ -39,9 +41,8 @@ func (hf *HttpFetcher) Fetch(ctx context.Context, url string) ([]string, error) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errof("Unsucessful status code : %s", resp.StatusCode)
+		return nil, fmt.Errorf("Unsucessful status code : %d", resp.StatusCode)
 	}
 
-
-	return hf.parser(resp.Body, url)
+	return hf.parser.Parse(resp.Body, url)
 }
