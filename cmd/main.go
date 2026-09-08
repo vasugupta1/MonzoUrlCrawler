@@ -11,6 +11,11 @@ import (
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/parser"
 )
 
+//TODO 1: Add Rate Limiting
+//2: Check of Allowed SubDomain
+//3: Improve Concurrency
+//4: Add logging in crawler, fetcher and html parser
+
 func main() {
 	startURL, _ := url.Parse("https://crawlme.monzo.com/")
 
