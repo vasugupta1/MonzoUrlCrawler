@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/url"
 	"time"
 
+	"github.com/vasugupta1/MonzoUrlCrawler/internal/crawler"
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/fetcher"
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/parser"
 )
@@ -24,13 +24,10 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	links, err := hf.Fetch(ctx, startURL)
+	crawler := crawler.NewCrawler(hf)
+	_, err := crawler.Crawl(ctx, startURL)
+
 	if err != nil {
 		log.Fatalf("Fetch failed: %v", err)
-	}
-
-	fmt.Printf("Discovered %d links on %s:\n", len(links), startURL)
-	for _, link := range links {
-		fmt.Println(" -", link.String())
 	}
 }

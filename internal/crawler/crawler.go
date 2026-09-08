@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/fetcher"
@@ -43,7 +44,7 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 	for activeFetches > 0 {
 		select {
 		case <-ctx.Done():
-			break
+			activeFetches = 0
 		case discoveredLinks := <-results:
 			activeFetches--
 			for _, url := range discoveredLinks {
@@ -60,21 +61,23 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 
 	var visited []string
 	for url := range seen {
+		fmt.Println("Found Link -> ", url)
 		visited = append(visited, url)
 	}
 	return visited, nil
 }
 
-func (c *Crawler) crawl(ctx context.Context, url *url.URL, result chan<- []*url.URL) {
+func (c *Crawler) crawl(ctx context.Context, targetUrl *url.URL, result chan<- []*url.URL) {
+	urls, err := c.Fetcher.Fetch(ctx, targetUrl)
+
+	var sendResult []*url.URL
+	if err == nil {
+		sendResult = urls
+	}
+
 	select {
+	case result <- sendResult:
 	case <-ctx.Done():
 		return
-	default:
-		urls, err := c.Fetcher.Fetch(ctx, url)
-		if err != nil {
-			result <- nil
-			return
-		}
-		result <- urls
 	}
 }
