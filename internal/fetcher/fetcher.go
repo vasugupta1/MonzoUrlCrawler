@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/parser"
 )
 
-type fetcher interface {
-	Fetch(ctx context.Context, url string) ([]string, error)
+type Fetcher interface {
+	Fetch(ctx context.Context, url *url.URL) ([]*url.URL, error)
 }
 
 type HttpFetcher struct {
@@ -27,8 +28,8 @@ func NewHttpFetcher(timeout time.Duration, htmlParser *parser.HtmlParser) *HttpF
 	}
 }
 
-func (hf *HttpFetcher) Fetch(ctx context.Context, url string) ([]string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (hf *HttpFetcher) Fetch(ctx context.Context, url *url.URL) ([]*url.URL, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 	if err != nil {
 		return nil, err
 	}
