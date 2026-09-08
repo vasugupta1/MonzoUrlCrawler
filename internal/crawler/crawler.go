@@ -2,25 +2,27 @@ package crawler
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 
+	"github.com/vasugupta1/MonzoUrlCrawler/internal/concurrency"
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/fetcher"
 )
 
 type Crawler struct {
-	Fetcher fetcher.Fetcher
+	fetcher     fetcher.Fetcher
+	rateLimiter *concurrency.RateLimiter[[]*url.URL]
 }
 
-func NewCrawler(fetcher fetcher.Fetcher) *Crawler {
+func NewCrawler(fetcher fetcher.Fetcher, limit int) *Crawler {
 	return &Crawler{
-		Fetcher: fetcher,
+		fetcher:     fetcher,
+		rateLimiter: concurrency.NewRateLimiter[[]*url.URL](limit),
 	}
 }
 
 func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 
-	urls, err := c.Fetcher.Fetch(ctx, base)
+	urls, err := c.fetcher.Fetch(ctx, base)
 	if err != nil {
 		//log
 		return nil, err
@@ -31,6 +33,7 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 
 	// set base as seen
 	seen[base.String()] = struct{}{}
+
 	activeFetches := 0
 	for _, url := range urls {
 		key := url.String()
@@ -61,14 +64,16 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 
 	var visited []string
 	for url := range seen {
-		fmt.Println("Found Link -> ", url)
 		visited = append(visited, url)
 	}
 	return visited, nil
 }
 
 func (c *Crawler) crawl(ctx context.Context, targetUrl *url.URL, result chan<- []*url.URL) {
-	urls, err := c.Fetcher.Fetch(ctx, targetUrl)
+
+	urls, err := c.rateLimiter.Process(ctx, func() ([]*url.URL, error) {
+		return c.fetcher.Fetch(ctx, targetUrl)
+	})
 
 	var sendResult []*url.URL
 	if err == nil {

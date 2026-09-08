@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/url"
 	"time"
@@ -11,8 +12,7 @@ import (
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/parser"
 )
 
-//TODO 1: Add Rate Limiting
-//2: Check of Allowed SubDomain
+//1. Add options pattern so it builds out crawler with set of the methods correctly
 //3: Improve Concurrency
 //4: Add logging in crawler, fetcher and html parser
 
@@ -29,10 +29,15 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	crawler := crawler.NewCrawler(hf)
-	_, err := crawler.Crawl(ctx, startURL)
+	crawler := crawler.NewCrawler(hf, 10)
+	foundUrls, err := crawler.Crawl(ctx, startURL)
 
 	if err != nil {
 		log.Fatalf("Fetch failed: %v", err)
+	}
+
+	fmt.Println("Found total of %d", len(foundUrls))
+	for _, url := range foundUrls {
+		fmt.Println(url)
 	}
 }
