@@ -22,7 +22,7 @@ type WorkerPool struct {
 func NewWorkerPool(workerCount int) *WorkerPool {
 	return &WorkerPool{
 		workerCount: workerCount,
-		queue:       make(chan *url.URL, workerCount*10),
+		queue:       make(chan *url.URL, workerCount),
 		results:     make(chan WorkResult),
 	}
 }
@@ -43,9 +43,8 @@ func (wp *WorkerPool) Start(ctx context.Context, function func(ctx context.Conte
 }
 
 func (wp *WorkerPool) Done() {
-	//decrement the pending work count and check if we reached 0
-	wp.pendingWork.Add(-1)
-	if wp.pendingWork.Load() == 0 {
+	//subtracting and checking is 2 atomic operations, its better read the return from .Add
+	if wp.pendingWork.Add(-1) == 0 {
 		close(wp.queue)
 		close(wp.results)
 		return

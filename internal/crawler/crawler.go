@@ -37,7 +37,7 @@ func NewCrawler(fetcher fetcher.Fetcher, parser *parser.HtmlParser, processor ur
 	c := &Crawler{
 		fetcher:     fetcher,
 		parser:      parser,
-		workerCount: 1000, // default value
+		workerCount: 100, // default value
 		processor:   processor,
 	}
 	for _, opt := range opts {
@@ -68,13 +68,14 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 
 	for result := range workerPool.Results() {
 		if result.Err != nil {
+			c.logger.Printf("Error Discovering href urls: %v in source : %s", result.Err, result.SourceUrl)
 			workerPool.Done()
 			continue
 		}
 		for _, discoverUrl := range result.DiscoverdUrls {
 			processedUrl, err := c.processor.ProcessUrl(discoverUrl, result.SourceUrl)
 			if err != nil {
-				//log and continue
+				c.logger.Printf("Error Processing href urls: %v in source : %s", err, result.SourceUrl)
 				continue
 			}
 

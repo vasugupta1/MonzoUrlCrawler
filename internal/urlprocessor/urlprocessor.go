@@ -2,7 +2,6 @@ package urlprocessor
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
 )
@@ -15,30 +14,18 @@ type Option func(*UrlProcessor)
 
 type UrlProcessor struct {
 	supportScheme map[string]struct{}
-	logger        *log.Logger
 }
 
-func NewUrlProcessor(opts ...Option) *UrlProcessor {
-	p := &UrlProcessor{
-		supportScheme: map[string]struct{}{},
+func NewUrlProcessor(supportedSchems ...string) *UrlProcessor {
+	schemes := make(map[string]struct{})
+	for _, scheme := range supportedSchems {
+		schemes[scheme] = struct{}{}
 	}
-	for _, opt := range opts {
-		opt(p)
+	p := &UrlProcessor{
+		supportScheme: schemes,
 	}
 
 	return p
-}
-
-func WithLogger(logger *log.Logger) Option {
-	return func(p *UrlProcessor) {
-		p.logger = logger
-	}
-}
-
-func WithSupportedScheme(scheme string) Option {
-	return func(p *UrlProcessor) {
-		p.supportScheme[scheme] = struct{}{}
-	}
 }
 
 func (p *UrlProcessor) ProcessUrl(crawledUrl *url.URL, baseUrl *url.URL) (*url.URL, error) {
@@ -46,7 +33,6 @@ func (p *UrlProcessor) ProcessUrl(crawledUrl *url.URL, baseUrl *url.URL) (*url.U
 
 	scheme := strings.ToLower(resolvedHref.Scheme)
 	if _, ok := p.supportScheme[scheme]; !ok {
-		p.logger.Printf("Skipping url as its not supported by scheme configured: %s", crawledUrl)
 		return nil, fmt.Errorf("unsupported scheme: %s", scheme)
 	}
 
