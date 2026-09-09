@@ -43,3 +43,28 @@ func (wp *WorkerPool) Start(ctx context.Context, function func(ctx context.Conte
 	}
 }
 
+func (wp *WorkerPool) worker(ctx context.Context, function func(ctx context.Context, url *url.URL) [] *url.URL){
+	for {
+		select{
+		case <-ctx.Done():
+			return
+		case targetUrl, ok := <- wp.queue:
+			if !ok {
+				//queue is closed here so exit clearnly
+				return
+			}
+			urls := function(ctx, url)
+			
+			result := WorkResult {discoverdUrls: urls, sourceUrl: url }
+			
+			select{	
+			case: <-ctx.Done():
+				return
+			case wp.res
+			}
+
+
+
+		}
+	}
+}
