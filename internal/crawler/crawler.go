@@ -7,6 +7,7 @@ import (
 
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/concurrency"
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/fetcher"
+	"github.com/vasugupta1/MonzoUrlCrawler/internal/urlprocessor"
 )
 
 type Option func(*Crawler)
@@ -15,18 +16,7 @@ type Crawler struct {
 	fetcher     fetcher.Fetcher
 	rateLimiter *concurrency.RateLimiter[[]*url.URL]
 	logger      *log.Logger
-}
-
-func NewCrawler(fetcher fetcher.Fetcher, opts ...Option) *Crawler {
-	c := &Crawler{
-		fetcher: fetcher,
-		//set default in case caller of NewCrawler forgets to add it
-		rateLimiter: concurrency.NewRateLimiter[[]*url.URL](100),
-	}
-	for _, opt := range opts {
-		opt(c)
-	}
-	return c
+	processor   urlprocessor.Processor
 }
 
 func WithRateLimit(limit int) Option {
@@ -41,12 +31,36 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
+func NewCrawler(fetcher fetcher.Fetcher, processor urlprocessor.Processor, opts ...Option) *Crawler {
+	c := &Crawler{
+		fetcher: fetcher,
+		//set default in case caller of NewCrawler forgets to add it
+		rateLimiter: concurrency.NewRateLimiter[[]*url.URL](100),
+		processor:   processor,
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
 func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 
 	urls, err := c.fetcher.Fetch(ctx, base)
 	if err != nil {
 		//log
 		return nil, err
+	}
+
+	processedUrls := make([]*url.URL, 0, len(urls))
+	for _, u := range urls {
+		processedUrl, err := c.processor.ProcessUrl(u, base)
+		if err != nil {
+			c.logger.Printf("Failed to process url: %s", u)
+			continue
+		}
+		processedUrls = append(processedUrls, processedUrl)
+
 	}
 
 	results := make(chan []*url.URL)
@@ -56,7 +70,7 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 	seen[base.String()] = struct{}{}
 
 	activeFetches := 0
-	for _, url := range urls {
+	for _, url := range processedUrls {
 		key := url.String()
 		if _, ok := seen[key]; !ok {
 			seen[key] = struct{}{}
@@ -90,6 +104,7 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 	return visited, nil
 }
 
+// / this will need to be updated
 func (c *Crawler) crawl(ctx context.Context, targetUrl *url.URL, result chan<- []*url.URL) {
 
 	urls, err := c.rateLimiter.Process(ctx, func() ([]*url.URL, error) {
@@ -97,12 +112,23 @@ func (c *Crawler) crawl(ctx context.Context, targetUrl *url.URL, result chan<- [
 	})
 
 	if err != nil {
-		c.logger.Printf("Failed to card %s", targetUrl)
+		c.logger.Printf("Failed to crawl %s", targetUrl)
 		return
 	}
 
+	processedUrls := make([]*url.URL, 0, len(urls))
+	for _, u := range urls {
+		processedUrl, err := c.processor.ProcessUrl(u, targetUrl)
+		if err != nil {
+			c.logger.Printf("Failed to process url: %s", u)
+			continue
+		}
+		processedUrls = append(processedUrls, processedUrl)
+
+	}
+
 	select {
-	case result <- urls:
+	case result <- processedUrls:
 	case <-ctx.Done():
 		return
 	}

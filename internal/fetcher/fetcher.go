@@ -45,5 +45,5 @@ func (hf *HttpFetcher) Fetch(ctx context.Context, url *url.URL) ([]*url.URL, err
 		return nil, fmt.Errorf("Unsucessful status code : %d", resp.StatusCode)
 	}
 
-	return hf.parser.Parse(resp.Body, url)
+	return hf.parser.Parse(resp.Body)
 }
