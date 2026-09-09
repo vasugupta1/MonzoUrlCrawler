@@ -3,32 +3,29 @@ package fetcher
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/vasugupta1/MonzoUrlCrawler/internal/parser"
 )
 
 type Fetcher interface {
-	Fetch(ctx context.Context, url *url.URL) ([]*url.URL, error)
+	Fetch(ctx context.Context, url *url.URL) (io.ReadCloser, error)
 }
 
 type HttpFetcher struct {
 	client *http.Client
-	parser *parser.HtmlParser
 }
 
-func NewHttpFetcher(timeout time.Duration, htmlParser *parser.HtmlParser) *HttpFetcher {
+func NewHttpFetcher(timeout time.Duration) *HttpFetcher {
 	return &HttpFetcher{
 		client: &http.Client{
 			Timeout: timeout,
 		},
-		parser: htmlParser,
 	}
 }
 
-func (hf *HttpFetcher) Fetch(ctx context.Context, url *url.URL) ([]*url.URL, error) {
+func (hf *HttpFetcher) Fetch(ctx context.Context, url *url.URL) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 	if err != nil {
 		return nil, err
@@ -39,11 +36,10 @@ func (hf *HttpFetcher) Fetch(ctx context.Context, url *url.URL) ([]*url.URL, err
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
 		return nil, fmt.Errorf("Unsucessful status code : %d", resp.StatusCode)
 	}
 
-	return hf.parser.Parse(resp.Body)
+	return resp.Body, nil
 }

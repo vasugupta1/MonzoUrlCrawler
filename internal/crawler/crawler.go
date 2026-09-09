@@ -7,6 +7,7 @@ import (
 
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/concurrency"
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/fetcher"
+	"github.com/vasugupta1/MonzoUrlCrawler/internal/parser"
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/urlprocessor"
 )
 
@@ -17,6 +18,7 @@ type Crawler struct {
 	rateLimiter *concurrency.RateLimiter[[]*url.URL]
 	logger      *log.Logger
 	processor   urlprocessor.Processor
+	parser      *parser.HtmlParser
 }
 
 func WithRateLimit(limit int) Option {
@@ -31,9 +33,10 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
-func NewCrawler(fetcher fetcher.Fetcher, processor urlprocessor.Processor, opts ...Option) *Crawler {
+func NewCrawler(fetcher fetcher.Fetcher, parser *parser.HtmlParser, processor urlprocessor.Processor, opts ...Option) *Crawler {
 	c := &Crawler{
 		fetcher: fetcher,
+		parser:  parser,
 		//set default in case caller of NewCrawler forgets to add it
 		rateLimiter: concurrency.NewRateLimiter[[]*url.URL](100),
 		processor:   processor,
@@ -46,9 +49,15 @@ func NewCrawler(fetcher fetcher.Fetcher, processor urlprocessor.Processor, opts 
 
 func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 
-	urls, err := c.fetcher.Fetch(ctx, base)
+	body, err := c.fetcher.Fetch(ctx, base)
 	if err != nil {
 		//log
+		return nil, err
+	}
+	defer body.Close()
+
+	urls, err := c.parser.Parse(body)
+	if err != nil {
 		return nil, err
 	}
 
@@ -108,7 +117,17 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 func (c *Crawler) crawl(ctx context.Context, targetUrl *url.URL, result chan<- []*url.URL) {
 
 	urls, err := c.rateLimiter.Process(ctx, func() ([]*url.URL, error) {
-		return c.fetcher.Fetch(ctx, targetUrl)
+		body, err := c.fetcher.Fetch(ctx, targetUrl)
+		if err != nil {
+			return nil, err
+		}
+		defer body.Close()
+		urls, err := c.parser.Parse(body)
+		if err != nil {
+			return nil, err
+		}
+
+		return urls, nil
 	})
 
 	if err != nil {

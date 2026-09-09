@@ -22,13 +22,13 @@ func main() {
 	startURL, _ := url.Parse("https://crawlme.monzo.com/")
 	htmlParser := parser.NewHtmlParser()
 	fetchTimeout := 20 * time.Second
-	hf := fetcher.NewHttpFetcher(fetchTimeout, htmlParser)
+	hf := fetcher.NewHttpFetcher(fetchTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	logger := log.New(os.Stdout, "[CRAWLER] ", log.LstdFlags)
 	processor := urlprocessor.NewUrlProcessor(urlprocessor.WithLogger(logger), urlprocessor.WithSupportedScheme("http"), urlprocessor.WithSupportedScheme("https"))
-	crawler := crawler.NewCrawler(hf, processor, crawler.WithRateLimit(100), crawler.WithLogger(logger))
+	crawler := crawler.NewCrawler(hf, htmlParser, processor, crawler.WithRateLimit(100), crawler.WithLogger(logger))
 	foundUrls, err := crawler.Crawl(ctx, startURL)
 
 	if err != nil {
