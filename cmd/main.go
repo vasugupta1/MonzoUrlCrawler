@@ -27,8 +27,16 @@ func main() {
 	defer cancel()
 
 	logger := log.New(os.Stdout, "[CRAWLER] ", log.LstdFlags)
-	processor := urlprocessor.NewUrlProcessor(urlprocessor.WithLogger(logger), urlprocessor.WithSupportedScheme("http"), urlprocessor.WithSupportedScheme("https"))
-	crawler := crawler.NewCrawler(hf, htmlParser, processor, crawler.WithRateLimit(100), crawler.WithLogger(logger))
+
+	processor := urlprocessor.NewUrlProcessor(urlprocessor.WithLogger(logger),
+		urlprocessor.WithSupportedScheme("http"),
+		urlprocessor.WithSupportedScheme("https"))
+
+	crawler := crawler.NewCrawler(hf,
+		htmlParser,
+		processor,
+		crawler.WithLogger(logger))
+
 	foundUrls, err := crawler.Crawl(ctx, startURL)
 
 	if err != nil {
