@@ -3,6 +3,7 @@ package concurrency
 import (
 	"context"
 	"net/url"
+	"sync"
 	"sync/atomic"
 )
 
@@ -17,6 +18,7 @@ type WorkerPool struct {
 	queue       chan *url.URL
 	results     chan WorkResult
 	pendingWork atomic.Int64
+	closeOnce   sync.Once
 }
 
 func NewWorkerPool(workerCount int) *WorkerPool {
@@ -45,10 +47,20 @@ func (wp *WorkerPool) Start(ctx context.Context, function func(ctx context.Conte
 func (wp *WorkerPool) Done() {
 	//subtracting and checking is 2 atomic operations, its better read the return from .Add
 	if wp.pendingWork.Add(-1) == 0 {
-		close(wp.queue)
-		close(wp.results)
+		wp.shutdown()
 		return
 	}
+}
+
+func (wp *WorkerPool) Shutdown() {
+	wp.shutdown()
+}
+
+func (wp *WorkerPool) shutdown() {
+	wp.closeOnce.Do(func() {
+		close(wp.queue)
+		close(wp.results)
+	})
 }
 
 func (wp *WorkerPool) worker(ctx context.Context, function func(ctx context.Context, url *url.URL) ([]*url.URL, error)) {

@@ -66,6 +66,9 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 		return urls, nil
 	})
 
+	//make sure once everything is done all channels are closed so no leaks
+	defer workerPool.Shutdown()
+
 	for result := range concurrency.OrDone(ctx, workerPool.Results()) {
 		if result.Err != nil {
 			c.logger.Printf("Error Discovering href urls: %v in source : %s", result.Err, result.SourceUrl)
