@@ -41,9 +41,11 @@ func (p *UrlProcessor) ProcessUrl(crawledUrl *url.URL, baseUrl *url.URL) (*url.U
 		return nil, fmt.Errorf("Host Domain doesn't match")
 	}
 
+	// page could have fragments which tell the browser where to scroll on the page so its probably best to set them empty
 	resolvedHref.Fragment = ""
 	resolvedHref.RawFragment = ""
 
+	// normalise the the root incase we get into a loop with <base_url> and <base_url>/
 	if resolvedHref.Path == "" {
 		resolvedHref.Path = "/"
 	}

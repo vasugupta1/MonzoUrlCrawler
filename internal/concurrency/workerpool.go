@@ -56,6 +56,7 @@ func (wp *WorkerPool) Shutdown() {
 	wp.shutdown()
 }
 
+// closeOnce will use sync.Once to execute closing of the channels at once and its atomic
 func (wp *WorkerPool) shutdown() {
 	wp.closeOnce.Do(func() {
 		close(wp.queue)
