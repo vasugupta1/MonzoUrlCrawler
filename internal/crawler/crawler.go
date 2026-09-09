@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/url"
 
+	"github.com/vasugupta1/MonzoUrlCrawler/internal/concurrency"
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/fetcher"
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/parser"
 	"github.com/vasugupta1/MonzoUrlCrawler/internal/urlprocessor"
@@ -36,7 +37,7 @@ func NewCrawler(fetcher fetcher.Fetcher, parser *parser.HtmlParser, processor ur
 	c := &Crawler{
 		fetcher:     fetcher,
 		parser:      parser,
-		workerCount: 100, // default value
+		workerCount: 1000, // default value
 		processor:   processor,
 	}
 	for _, opt := range opts {
@@ -50,6 +51,42 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 	seen := make(map[string]struct{})
 	seen[base.String()] = struct{}{}
 
+	workerPool := concurrency.NewWorkerPool(c.workerCount)
+	workerPool.Submit(base)
+	workerPool.Start(ctx, func(ctx context.Context, url *url.URL) ([]*url.URL, error) {
+		body, err := c.fetcher.Fetch(ctx, url)
+		if err != nil {
+			return nil, err
+		}
+		defer body.Close()
+		urls, err := c.parser.Parse(body)
+		if err != nil {
+			return nil, err
+		}
+		return urls, nil
+	})
+
+	for result := range workerPool.Results() {
+		if result.Err != nil {
+			workerPool.Done()
+			continue
+		}
+		for _, discoverUrl := range result.DiscoverdUrls {
+			processedUrl, err := c.processor.ProcessUrl(discoverUrl, result.SourceUrl)
+			if err != nil {
+				//log and continue
+				continue
+			}
+
+			key := processedUrl.String()
+			if _, exists := seen[key]; !exists {
+				seen[key] = struct{}{}
+				workerPool.Submit(processedUrl)
+			}
+		}
+		workerPool.Done()
+	}
+
 	visisted := make([]string, 0, len(seen))
 	for u := range seen {
 		visisted = append(visisted, u)
@@ -57,109 +94,3 @@ func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
 
 	return visisted, nil
 }
-
-// func (c *Crawler) Crawl(ctx context.Context, base *url.URL) ([]string, error) {
-
-// 	body, err := c.fetcher.Fetch(ctx, base)
-// 	if err != nil {
-// 		//log
-// 		return nil, err
-// 	}
-// 	defer body.Close()
-
-// 	urls, err := c.parser.Parse(body)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	processedUrls := make([]*url.URL, 0, len(urls))
-// 	for _, u := range urls {
-// 		processedUrl, err := c.processor.ProcessUrl(u, base)
-// 		if err != nil {
-// 			c.logger.Printf("Failed to process url: %s", u)
-// 			continue
-// 		}
-// 		processedUrls = append(processedUrls, processedUrl)
-
-// 	}
-
-// 	results := make(chan []*url.URL)
-// 	seen := make(map[string]struct{})
-
-// 	// set base as seen
-// 	seen[base.String()] = struct{}{}
-
-// 	activeFetches := 0
-// 	for _, url := range processedUrls {
-// 		key := url.String()
-// 		if _, ok := seen[key]; !ok {
-// 			seen[key] = struct{}{}
-// 			activeFetches++
-// 			go c.crawl(ctx, url, results)
-// 		}
-// 	}
-
-// 	for activeFetches > 0 {
-// 		select {
-// 		case <-ctx.Done():
-// 			activeFetches = 0
-// 		case discoveredLinks := <-results:
-// 			activeFetches--
-// 			for _, url := range discoveredLinks {
-// 				key := url.String()
-// 				if _, ok := seen[key]; !ok {
-// 					seen[key] = struct{}{}
-// 					activeFetches++
-// 					go c.crawl(ctx, url, results)
-// 				}
-// 			}
-// 		}
-
-// 	}
-
-// 	var visited []string
-// 	for url := range seen {
-// 		visited = append(visited, url)
-// 	}
-// 	return visited, nil
-// }
-
-// // / this will need to be updated
-// func (c *Crawler) crawl(ctx context.Context, targetUrl *url.URL, result chan<- []*url.URL) {
-
-// 	urls, err := c.rateLimiter.Process(ctx, func() ([]*url.URL, error) {
-// 		body, err := c.fetcher.Fetch(ctx, targetUrl)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		defer body.Close()
-// 		urls, err := c.parser.Parse(body)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-
-// 		return urls, nil
-// 	})
-
-// 	if err != nil {
-// 		c.logger.Printf("Failed to crawl %s", targetUrl)
-// 		return
-// 	}
-
-// 	processedUrls := make([]*url.URL, 0, len(urls))
-// 	for _, u := range urls {
-// 		processedUrl, err := c.processor.ProcessUrl(u, targetUrl)
-// 		if err != nil {
-// 			c.logger.Printf("Failed to process url: %s", u)
-// 			continue
-// 		}
-// 		processedUrls = append(processedUrls, processedUrl)
-
-// 	}
-
-// 	select {
-// 	case result <- processedUrls:
-// 	case <-ctx.Done():
-// 		return
-// 	}
-// }
