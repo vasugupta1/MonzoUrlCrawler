@@ -18,7 +18,7 @@ type Crawler struct {
 	workerCount int
 	logger      *log.Logger
 	processor   urlprocessor.Processor
-	parser      *parser.HtmlParser
+	parser      parser.Parser
 }
 
 func WithWorkercount(count int) Option {

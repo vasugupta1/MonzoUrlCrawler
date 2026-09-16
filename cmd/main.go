@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -36,5 +35,5 @@ func main() {
 		log.Fatalf("Fetch failed: %v", err)
 	}
 
-	fmt.Printf("Found total of %d links\n", len(foundUrls))
+	log.Printf("Found total of %d links\n", len(foundUrls))
 }
